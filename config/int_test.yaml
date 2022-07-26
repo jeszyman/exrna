@@ -1,0 +1,13 @@
+#  Note: This script is tangled from code blocks in the Emacs Org-mode file at
+#  https://github.com/jeszyman/exrna/blob/master/exrna.org. Changes
+#  made directly to this file will be overwritten upon tangle from Org-mode.
+
+
+threads: 4
+data_dir: "/home/jeszyman/exrna_test"
+
+#  Repository-local Integration Testing Variables
+
+exrna_script_dir: "workflow/scripts"
+container: "${HOME}/sing_containers/rna.1.2.0.sif"
+deseq_design: "~ cohort"

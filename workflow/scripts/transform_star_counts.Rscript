@@ -1,0 +1,17 @@
+#!/usr/bin/env Rscript
+
+args = commandArgs(trailingOnly = TRUE)
+counts_input = args[1]
+counts_output_tsv = args[2]
+
+library(tidyverse)
+
+library = gsub("_.*$","", gsub("^.*lib","lib",counts_input))
+
+counts=read_tsv(counts_input,
+                col_names = FALSE,
+                skip = 4,
+                col_select = c(1:2))
+colnames(counts) = c("ensembl", library)
+
+write.table(counts, file = counts_output_tsv, row.names = F, sep = '\t', quote = F)
