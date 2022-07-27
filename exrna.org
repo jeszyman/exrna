@@ -209,6 +209,7 @@ tr " " "\t" < test/inputs/hsa.gff3.star > test/inputs/hsa.gff3.star2
 #+end_src
 
 
+*** TODO [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
 ** [[file:workflow/exrna.smk][exRNA sequencing read processing]]                                     :smk:
 :PROPERTIES:
 :header-args:snakemake: :tangle ./workflow/exrna.smk
@@ -822,6 +823,7 @@ rule make_star_mirna_index:
         --sjdbOverhang 1
 	"""
 #+end_src
+** TODO [[id:f6717c79-64ce-4b16-b455-649df2ba20fd][Project stable version update]]
 ** Reference
 :PROPERTIES:
 :header-args:snakemake: :tangle no
@@ -835,6 +837,8 @@ rule make_star_mirna_index:
 - cite:godoy2018
 - cite:dobin2019
 - [[id:cbf67ef7-39ec-45ec-b599-cdc0e8590cf7][Extracellular RNA bioinformatics]]
+- https://github.com/jeszyman/exrna
+- https://www.encodeproject.org/data-standards/reference-sequences/
 - exceRpt pipeline
   - cite:rozowsky2019
   - https://github.com/gersteinlab/exceRpt
