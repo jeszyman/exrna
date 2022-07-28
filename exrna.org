@@ -22,17 +22,18 @@
 <#bash_preamble#>
 
 threads: 4
+#data_dir: "/mnt/ris/szymanski/exrna_test"
 data_dir: "/home/jeszyman/exrna_test"
-
-#+end_src
-
-#+begin_src bash
-#  Repository-local Integration Testing Variables
-
 exrna_script_dir: "workflow/scripts"
 container: "${HOME}/sing_containers/rna.1.2.0.sif"
 deseq_design: "~ cohort"
+#exrna_fasta: "/mnt/ris/szymanski/exrna_test/inputs/chr19.fa"
+exrna_fasta: "/home/jeszyman/exrna_test/inputs/chr19.fa"
+#exrna_gtf: "/mnt/ris/szymanski/exrna_test/inputs/ENCFF470CZH.gtf"
+exrna_gtf: "/home/jeszyman/exrna_test/inputs/ENCFF470CZH.gtf"
 #+end_src
+
+
 *** Integration testing inputs setup
 - Manually created files: [[file:test/inputs/libraries.tsv]]
 - Shell commands
@@ -209,7 +210,7 @@ tr " " "\t" < test/inputs/hsa.gff3.star > test/inputs/hsa.gff3.star2
 #+end_src
 
 
-*** TODO [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
+*** DONE [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
 ** [[file:workflow/exrna.smk][exRNA sequencing read processing]]                                     :smk:
 :PROPERTIES:
 :header-args:snakemake: :tangle ./workflow/exrna.smk
@@ -221,19 +222,6 @@ tr " " "\t" < test/inputs/hsa.gff3.star > test/inputs/hsa.gff3.star2
 ###    exRNA Pipeline    ###
 ############################
 
-#+end_src
-*** DONE Symlink input fastqs                                         :smk_rule:
-- Snakemake
-  #+begin_src snakemake
-rule symlink_inputs:
-    input:
-        lambda wildcards: lib_dict[wildcards.library],
-    output:
-        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
-    shell:
-        """
-        ln -sf --relative {input} {output}
-        """
 #+end_src
 *** DONE Read pre-processing                                          :smk_rule:
 - Snakemake
@@ -286,8 +274,8 @@ flexbar \
   #+begin_src snakemake
 rule make_star_mirna_index:
     input:
-        fasta = config["data_dir"] + "/inputs/chr19.fa",
-        gtf = config["data_dir"] + "/inputs/ENCFF470CZH.gtf",
+        fasta = config["exrna_fasta"],
+        gtf = config["exrna_gtf"],
     params:
         outdir = config["data_dir"] + "/ref/mirna_star",
         script = config["exrna_script_dir"] + "/make_star_mirna_index.sh",
@@ -358,6 +346,9 @@ threads=$3
 output=$4
 out_prefix=$(echo $output | sed 's/_Reads.*$/_/g')
 
+#fq_base=$(echo fq | sed 's/^.*\///g')
+#mkdir -p /tmp/STAR
+
 STAR \
     --genomeDir $index \
     --outFileNamePrefix $out_prefix \
@@ -377,6 +368,8 @@ STAR \
     --alignIntronMin 2 \
     --alignIntronMax 1 \
     --alignEndsType Local
+
+#\rm -rf /tmp/STAR
 
 #+end_src
 - Reference
@@ -543,8 +536,8 @@ save(nofilt_dds,
 :PROPERTIES:
 :header-args:snakemake: :tangle ./workflow/int_test.smk
 :END:
-- Preamble, variable naming and function
-  #+begin_src snakemake :tangle ./workflow/int_test.smk
+**** Preamble, variable naming and functions
+#+begin_src snakemake :tangle ./workflow/int_test.smk
 
 ####################################################################
 ###   Integration Testing for Extracellular RNA Bioinformatics   ###
@@ -559,39 +552,42 @@ container: config["container"]
 
 libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")
 library_indict = libraries["library"].tolist()
-file_indict = libraries["file_id"].tolist()
-file_indict = [re.sub('$','.fastq.gz', file) for file in file_indict]
-file_indict = [re.sub('^', config["data_dir"] + "/inputs/", file) for file in file_indict]
+file_indict = libraries["file"].tolist()
 lib_dict = dict(zip(library_indict, file_indict))
 
 LIBRARIES = list(lib_dict.keys())
 FASTQS = list(lib_dict.values())
 #+end_src
-- All rule and other out-of-workflow rules
-  #+begin_src snakemake :tangle ./workflow/int_test.smk
+**** All rule and other out-of-workflow rules
+#+begin_src snakemake :tangle ./workflow/int_test.smk
 
 rule all:
     input:
-        expand(config["data_dir"] + "/fastq/raw/{library}.fastq.gz", library = lib_dict.keys()),
-        expand(config["data_dir"] + "/fastq/trim/{library}.fastq.gz", library = LIBRARIES),
-        expand(config["data_dir"] + "/bam/{align_step}/{library}_{align_step}_ReadsPerGene.out.tab", library = LIBRARIES, align_step = ["mirna"]),
-        expand(config["data_dir"] + "/counts/{library}_{align_step}_counts.tsv", library = LIBRARIES, align_step = ["mirna"]),
-        config["data_dir"] + "/counts/counts.tsv",
+        #expand(config["data_dir"] + "/fastq/raw/{library}.fastq.gz", library = lib_dict.keys()),
+        #expand(config["data_dir"] + "/fastq/trim/{library}.fastq.gz", library = LIBRARIES),
+        #expand(config["data_dir"] + "/bam/{align_step}/{library}_{align_step}_ReadsPerGene.out.tab", library = LIBRARIES, align_step = ["mirna"]),
+        #expand(config["data_dir"] + "/counts/{library}_{align_step}_counts.tsv", library = LIBRARIES, align_step = ["mirna"]),
+        #config["data_dir"] + "/counts/counts.tsv",
         config["data_dir"] + "/de/de.Rdata",
-
+#+end_src
+**** DONE Symlink input fastqs                                        :smk_rule:
+#+begin_src snakemake
+rule symlink_inputs:
+    input:
+        lambda wildcards: lib_dict[wildcards.library],
+    output:
+        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
+    shell:
+        """
+        ln -sf --relative {input} {output}
+        """
+#+end_src
+**** Includes statements
+#+begin_src snakemake
 include: "exrna.smk"
-
 #+end_src
 *** Shell scripts
-#+begin_src bash :tangle ./tools/shell/rm_outputs.sh
-#!/usr/bin/env bash
 
-shopt -s extglob
-cd ./test
-rm -rf !(inputs)
-cd ../
-
-#+end_src
 **** From biotools
 ***** Dry run
 #+transclude: [[id:c6c494f0-5dbe-4cc4-bf99-8bcd7b12de24]] :only-contents
@@ -611,6 +607,7 @@ cd ../
 Note: STAR-generated files (suffix array, unmapped reads, etc.) are too large to store on github even for a very small working example, so this repository integration testing uses an off-repo directory for data. Can still be built on a 4 core in reasonable time.
 
 *** Changelog
+- [2022-07-28 Thu] v1.1: moved symlink command back to integration testing snakefile and set to simple file path. Made reference genome and gtf into params. Added mem resource limit to flexbar.
 - [2022-07-26 Tue] Minimum viable build. Makes a deseq object starting from fastqs, reference fasta, ENCODE miRNA gtf, and a library tsv.
 - [2022-06-08 Wed] Repository started
 ** Development
@@ -823,7 +820,7 @@ rule make_star_mirna_index:
         --sjdbOverhang 1
 	"""
 #+end_src
-** TODO [[id:f6717c79-64ce-4b16-b455-649df2ba20fd][Project stable version update]]
+** [[id:f6717c79-64ce-4b16-b455-649df2ba20fd][Project stable version update]]
 ** Reference
 :PROPERTIES:
 :header-args:snakemake: :tangle no

@@ -4,10 +4,12 @@
 
 
 threads: 4
+#data_dir: "/mnt/ris/szymanski/exrna_test"
 data_dir: "/home/jeszyman/exrna_test"
-
-#  Repository-local Integration Testing Variables
-
 exrna_script_dir: "workflow/scripts"
 container: "${HOME}/sing_containers/rna.1.2.0.sif"
 deseq_design: "~ cohort"
+#exrna_fasta: "/mnt/ris/szymanski/exrna_test/inputs/chr19.fa"
+exrna_fasta: "/home/jeszyman/exrna_test/inputs/chr19.fa"
+#exrna_gtf: "/mnt/ris/szymanski/exrna_test/inputs/ENCFF470CZH.gtf"
+exrna_gtf: "/home/jeszyman/exrna_test/inputs/ENCFF470CZH.gtf"

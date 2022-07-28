@@ -2,16 +2,6 @@
 ###    exRNA Pipeline    ###
 ############################
 
-rule symlink_inputs:
-    input:
-        lambda wildcards: lib_dict[wildcards.library],
-    output:
-        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
-    shell:
-        """
-        ln -sf --relative {input} {output}
-        """
-
 rule read_preprocessing:
     input:
         config["data_dir"] + "/fastq/raw/{library}.fastq.gz",
@@ -35,8 +25,8 @@ rule read_preprocessing:
 
 rule make_star_mirna_index:
     input:
-        fasta = config["data_dir"] + "/inputs/chr19.fa",
-        gtf = config["data_dir"] + "/inputs/ENCFF470CZH.gtf",
+        fasta = config["exrna_fasta"],
+        gtf = config["exrna_gtf"],
     params:
         outdir = config["data_dir"] + "/ref/mirna_star",
         script = config["exrna_script_dir"] + "/make_star_mirna_index.sh",

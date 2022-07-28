@@ -6,6 +6,9 @@ threads=$3
 output=$4
 out_prefix=$(echo $output | sed 's/_Reads.*$/_/g')
 
+#fq_base=$(echo fq | sed 's/^.*\///g')
+#mkdir -p /tmp/STAR
+
 STAR \
     --genomeDir $index \
     --outFileNamePrefix $out_prefix \
@@ -25,3 +28,5 @@ STAR \
     --alignIntronMin 2 \
     --alignIntronMax 1 \
     --alignEndsType Local
+
+#\rm -rf /tmp/STAR
