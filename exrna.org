@@ -1,3 +1,5 @@
+for star, add a check and remove tmp dir pior to run
+limit resoures on the star alignment
 * Extracellular RNA Bioinformatics                                  :biopipe:
 :PROPERTIES:
 :header-args: :tangle no :tangle-mode (identity #o555)
@@ -35,7 +37,7 @@ exrna_gtf: "/home/jeszyman/exrna_test/inputs/ENCFF470CZH.gtf"
 
 
 *** Integration testing inputs setup
-- Manually created files: [[file:test/inputs/libraries.tsv]]
+- Manually created files: [[file:resources/libraries.tsv]]
 - Shell commands
   #+begin_src bash
 mkdir -p test/inputs
@@ -345,10 +347,8 @@ fq=$2
 threads=$3
 output=$4
 out_prefix=$(echo $output | sed 's/_Reads.*$/_/g')
-out_tmp=$(echo $fq | sed 's/^.*lib/lib/g')
 
-#fq_base=$(echo fq | sed 's/^.*\///g')
-#mkdir -p /tmp/STAR
+out_tmp=$(echo $fq | sed 's/^.*lib/lib/g')
 
 STAR \
     --genomeDir $index \
@@ -370,8 +370,6 @@ STAR \
     --alignIntronMax 1 \
     --outTmpDir "/tmp/${out_tmp}" \
     --alignEndsType Local
-
-#\rm -rf /tmp/STAR
 
 #+end_src
 - Reference
