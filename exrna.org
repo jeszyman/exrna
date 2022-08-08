@@ -1,5 +1,3 @@
-for star, add a check and remove tmp dir pior to run
-limit resoures on the star alignment
 * Extracellular RNA Bioinformatics                                  :biopipe:
 :PROPERTIES:
 :header-args: :tangle no :tangle-mode (identity #o555)
@@ -547,7 +545,6 @@ import pandas as pd
 import re
 container: config["container"]
 
-
 # Setup sample name index as a python dictionary
 
 libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")
@@ -793,6 +790,8 @@ for excerpt way, need to filter mirdb fas to just human, then build annotation f
       - mkdir STAR_GENOME_PLANTS1
       - /gpfs/scratch/fas/gerstein/rrk24/bin/STAR_2.4.0i/bin/Linux_x86_64/STAR --runMode genomeGenerate --genomeDir STAR_GENOME_PLANTS1 --genomeFastaFiles Plant1.fa --limitGenomeGenerateRAM 256000000000 --genomeChrBinNbits 13 --runThreadN 64
 *** Unordered
+- for star, add a check and remove tmp dir pior to run
+- limit resoures on the star alignment
 - ssgsea for mirna enrichment human vs mouse- cite:wilson2019
 - alternative de
 **** Post-alignment processing
