@@ -4,6 +4,13 @@
 :header-args+: :noweb yes
 :logging: nil
 :END:
+Refine seq- align out contaminates, try diff, seq level qc, map orders
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("DEGreport")
+
+
+- [ ] need apeglm for lfcshrink
 ** Setup
 *** Bash preamble
 #+name: bash_preamble
