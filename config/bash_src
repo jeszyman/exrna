@@ -1,0 +1,2 @@
+data_dir=/mnt/ris/szymanski/Active/test
+mkdir -p ${data_dir}/exrna

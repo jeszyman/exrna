@@ -4,21 +4,11 @@
 :header-args+: :noweb yes
 :logging: nil
 :END:
-Refine seq- align out contaminates, try diff, seq level qc, map orders
-if (!require("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-BiocManager::install("DEGreport")
-
-
-- [ ] need apeglm for lfcshrink
-** Setup
+** Repository setup and administration
 *** Bash preamble
-#+name: bash_preamble
-#+begin_src bash
-
-#  Note: This script is tangled from code blocks in the Emacs Org-mode file at
-#  https://github.com/jeszyman/exrna/blob/master/exrna.org. Changes
-#  made directly to this file will be overwritten upon tangle from Org-mode.
+#+begin_src bash :tangle ./config/bash_src
+data_dir=/mnt/ris/szymanski/Active/test
+mkdir -p ${data_dir}/exrna
 
 #+end_src
 *** [[file:config/int_test.yaml][Snakemake configuration YAML]]
@@ -41,24 +31,19 @@ exrna_gtf: "/home/jeszyman/exrna_test/inputs/ENCFF470CZH.gtf"
 #+end_src
 
 
-*** Integration testing inputs setup
+*** TODO Integration testing inputs setup
 - Manually created files: [[file:resources/libraries.tsv]]
 - Shell commands
   #+begin_src bash
-mkdir -p test/inputs
+mkdir -p $data_dir/inputs
 
-# Import sample fastqs
-zcat /mnt/ris/jschwarz/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/10b.H5KGMDRXY_GGCTAC_L002_R1.fastq.gz |
-    head -n 20000000 > test/inputs/sample1_R1.fastq
-zcat /mnt/ris/jschwarz/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/18b.H5KGMDRXY_GTGAAA_L002_R1.fastq.gz |
-    head -n 20000000 > test/inputs/sample2_R1.fastq
-zcat /mnt/ris/jschwarz/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/11c.H5KGMDRXY_CTTGTA_L002_R1.fastq.gz |
-    head -n 20000000 > test/inputs/sample3_R1.fastq
-zcat /mnt/ris/jschwarz/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/12d.H5KGMDRXY_AGTCAA_L002_R1.fastq.gz |
-    head -n 20000000 > test/inputs/sample4_R1.fastq
-for file in "test/inputs/*.fastq"; do gzip --force $file; done
+# ^ EXPORT ^
+source config/bash_src
 
-# Make a truncated reference
+cp /mnt/ris/jschwarz/Active/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/10b.H5KGMDRXY_GGCTAC_L002_R1.fastq.gz $data_dir/inputs/
+
+cp /mnt/ris/jschwarz/Active/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/18b.H5KGMDRXY_GTGAAA_L002_R1.fastq.gz $data_dir/inputs/
+
 
 ## Get hg38
 wget --directory-prefix="test/inputs/" https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
@@ -216,21 +201,143 @@ tr " " "\t" < test/inputs/hsa.gff3.star > test/inputs/hsa.gff3.star2
 
 #+end_src
 
-
+  #+begin_src bash :tangle no
+#
+mkdir -p $repo/test/raw
+mkdir -p $repo/test/ref
+#
+zcat $dataDIR/raw/a1.s5121_91940_RPI3_TTAGGC_S4_R1_001.fastq.gz | head -n 10000 > $repo/test/raw/mouse.fastq
+zcat $dataDIR/raw/gb1_mirna.s5121_91939_RPI2_CGATGT_S3_R1_001.fastq.gz | head -n 10000 > $repo/test/raw/human.fastq
+#
+wget http://ftp.ensembl.org/pub/release-103/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.1.fa.gz -o /tmp/Homo_sapiens.GRCh38.dna.chromosome.1.fa.gz
+wget http://ftp.ensembl.org/pub/release-103/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.chromosome.1.fa.gz -o Mus_musculus.GRCm39.dna.chromosome.1.fa.gz
+#
+zcat /tmp/Homo_sapiens.GRCh38.dna.chromosome.1.fa.gz | head -n 10000 > $repo/test/ref/human_ref.fa
+zcat /tmp/Mus_musculus.GRCm39.dna.chromosome.1.fa.gz | head -n 10000 > $repo/test/ref/mouse_ref.fa
+#
+#+end_src
 *** DONE [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
-** [[file:workflow/exrna.smk][exRNA sequencing read processing]]                                     :smk:
+** Snakemake configuration YAML
+** Integration testing
+*** Integration testing
+**** [[file:workflow/int_test.smk][Snakefile]]                          :smk:
+:PROPERTIES:
+:header-args:snakemake: :tangle ./workflow/int_test.smk
+:END:
+***** Preamble, variable naming and functions
+#+begin_src snakemake :tangle ./workflow/int_test.smk
+
+####################################################################
+###   Integration Testing for Extracellular RNA Bioinformatics   ###
+####################################################################
+
+import pandas as pd
+import re
+container: config["container"]
+
+# Setup sample name index as a python dictionary
+
+libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")
+library_indict = libraries["library"].tolist()
+file_indict = libraries["file"].tolist()
+lib_dict = dict(zip(library_indict, file_indict))
+
+LIBRARIES = list(lib_dict.keys())
+FASTQS = list(lib_dict.values())
+#+end_src
+***** All rule and other out-of-workflow rules
+#+begin_src snakemake :tangle ./workflow/int_test.smk
+
+rule all:
+    input:
+        #expand(config["data_dir"] + "/fastq/raw/{library}.fastq.gz", library = lib_dict.keys()),
+        #expand(config["data_dir"] + "/fastq/trim/{library}.fastq.gz", library = LIBRARIES),
+        #expand(config["data_dir"] + "/bam/{align_step}/{library}_{align_step}_ReadsPerGene.out.tab", library = LIBRARIES, align_step = ["mirna"]),
+        #expand(config["data_dir"] + "/counts/{library}_{align_step}_counts.tsv", library = LIBRARIES, align_step = ["mirna"]),
+        #config["data_dir"] + "/counts/counts.tsv",
+        config["data_dir"] + "/de/de.Rdata",
+#+end_src
+***** DONE Symlink input fastqs                                    :smk_rule:
+#+begin_src snakemake
+rule symlink_inputs:
+    input:
+        lambda wildcards: lib_dict[wildcards.library],
+    output:
+        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
+    shell:
+        """
+        ln -sf --relative {input} {output}
+        """
+#+end_src
+***** Includes statements
+#+begin_src snakemake
+include: "exrna.smk"
+#+end_src
+**** Shell scripts
+
+***** From biotools
+****** Dry run
+#+transclude: [[id:c6c494f0-5dbe-4cc4-bf99-8bcd7b12de24]] :only-contents
+****** Draw rulegraph
+#+transclude: [[id:78a99954-1d5d-4e09-87a4-6690f28f4519]] :only-contents
+****** Normal run
+#+transclude: [[id:3adf72d3-aa35-4a3d-8eba-0df075c52e26]] :only-contents
+****** Forced run
+#+transclude: [[id:c2a25d2f-05bb-4eda-920f-e2d9fa768de6]] :only-contents
+
+** exRNA read processing, alignment, and differential expression :smk:
 :PROPERTIES:
 :header-args:snakemake: :tangle ./workflow/exrna.smk
 :END:
 *** Preamble
 #+begin_src snakemake
 
-############################
-###    exRNA Pipeline    ###
-############################
+#########1#########2#########3#########4#########5#########6#########7#########8
+###                                                                          ###
+###                              exRNA Pipeline                              ###
+###                                                                          ###
+#########1#########2#########3#########4#########5#########6#########7#########8
 
 #+end_src
-*** DONE Read pre-processing                                          :smk_rule:
+*** TODO Read pre-processing                                       :smk_rule:
+    --adapter-preset SmallRNA \
+    --output-log $log \
+    --output-reads $output \
+    --pre-trim-right 1 \
+    --reads $input \
+    --threads $threads \
+    --htrim-right AT \
+    --htrim-min-length 10 \
+    --htrim-error-rate 0.1 \
+    --zip-output GZ
+
+- [[file:./workflow/scripts/read_preprocessing.sh][Shell script]]
+  #+begin_src bash :tangle ./workflow/scripts/read_trim.sh
+#!/usr/bin/env bash
+
+# For unit testing
+singularity shell --bind /mnt ~/sing_containers/biotools.1.0.2.sif
+
+fastp -i  -o
+
+input=$1
+threads=$2
+output=$(echo $3 | sed 's/.gz$//g')
+log=$4
+
+flexbar \
+    --adapter-preset SmallRNA \
+    --output-log $log \
+    --output-reads $output \
+    --pre-trim-right 1 \
+    --reads $input \
+    --threads $threads \
+    --htrim-right AT \
+    --htrim-min-length 10 \
+    --htrim-error-rate 0.1 \
+    --zip-output GZ
+
+#+end_src
 - Snakemake
   #+begin_src snakemake
 rule read_preprocessing:
@@ -253,28 +360,6 @@ rule read_preprocessing:
         {output} \
         {log}
         """
-#+end_src
-- [[file:./workflow/scripts/read_preprocessing.sh][Shell script]]
-  #+begin_src bash :tangle ./workflow/scripts/read_preprocessing.sh
-#!/usr/bin/env bash
-
-input=$1
-threads=$2
-output=$(echo $3 | sed 's/.gz$//g')
-log=$4
-
-flexbar \
-    --adapter-preset SmallRNA \
-    --output-log $log \
-    --output-reads $output \
-    --pre-trim-right 1 \
-    --reads $input \
-    --threads $threads \
-    --htrim-right AT \
-    --htrim-min-length 10 \
-    --htrim-error-rate 0.1 \
-    --zip-output GZ
-
 #+end_src
 *** DONE Make STAR miRNA index                                        :smk_rule:
 - Snakemake
@@ -536,72 +621,6 @@ save(nofilt_dds,
 
 
 
-** Integration testing
-*** [[file:workflow/int_test.smk][Snakefile]] :smk:
-:PROPERTIES:
-:header-args:snakemake: :tangle ./workflow/int_test.smk
-:END:
-**** Preamble, variable naming and functions
-#+begin_src snakemake :tangle ./workflow/int_test.smk
-
-####################################################################
-###   Integration Testing for Extracellular RNA Bioinformatics   ###
-####################################################################
-
-import pandas as pd
-import re
-container: config["container"]
-
-# Setup sample name index as a python dictionary
-
-libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")
-library_indict = libraries["library"].tolist()
-file_indict = libraries["file"].tolist()
-lib_dict = dict(zip(library_indict, file_indict))
-
-LIBRARIES = list(lib_dict.keys())
-FASTQS = list(lib_dict.values())
-#+end_src
-**** All rule and other out-of-workflow rules
-#+begin_src snakemake :tangle ./workflow/int_test.smk
-
-rule all:
-    input:
-        #expand(config["data_dir"] + "/fastq/raw/{library}.fastq.gz", library = lib_dict.keys()),
-        #expand(config["data_dir"] + "/fastq/trim/{library}.fastq.gz", library = LIBRARIES),
-        #expand(config["data_dir"] + "/bam/{align_step}/{library}_{align_step}_ReadsPerGene.out.tab", library = LIBRARIES, align_step = ["mirna"]),
-        #expand(config["data_dir"] + "/counts/{library}_{align_step}_counts.tsv", library = LIBRARIES, align_step = ["mirna"]),
-        #config["data_dir"] + "/counts/counts.tsv",
-        config["data_dir"] + "/de/de.Rdata",
-#+end_src
-**** DONE Symlink input fastqs                                        :smk_rule:
-#+begin_src snakemake
-rule symlink_inputs:
-    input:
-        lambda wildcards: lib_dict[wildcards.library],
-    output:
-        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
-    shell:
-        """
-        ln -sf --relative {input} {output}
-        """
-#+end_src
-**** Includes statements
-#+begin_src snakemake
-include: "exrna.smk"
-#+end_src
-*** Shell scripts
-
-**** From biotools
-***** Dry run
-#+transclude: [[id:c6c494f0-5dbe-4cc4-bf99-8bcd7b12de24]] :only-contents
-***** Draw rulegraph
-#+transclude: [[id:78a99954-1d5d-4e09-87a4-6690f28f4519]] :only-contents
-***** Normal run
-#+transclude: [[id:3adf72d3-aa35-4a3d-8eba-0df075c52e26]] :only-contents
-***** Forced run
-#+transclude: [[id:c2a25d2f-05bb-4eda-920f-e2d9fa768de6]] :only-contents
-
 ** README
 :PROPERTIES:
 :export_file_name: ./README.md
@@ -796,6 +815,16 @@ for excerpt way, need to filter mirdb fas to just human, then build annotation f
       - cd /gpfs/scratch/fas/gerstein/rrk24/ANNOTATIONS/Genomes_BacteriaFungiMammalPlantProtistVirus
       - mkdir STAR_GENOME_PLANTS1
       - /gpfs/scratch/fas/gerstein/rrk24/bin/STAR_2.4.0i/bin/Linux_x86_64/STAR --runMode genomeGenerate --genomeDir STAR_GENOME_PLANTS1 --genomeFastaFiles Plant1.fa --limitGenomeGenerateRAM 256000000000 --genomeChrBinNbits 13 --runThreadN 64
+** Ideas
+- QC
+  - reads
+  - amount
+    - total reads (expect up to 400 mil per [[https://www.illumina.com/systems/sequencing-platforms/nextseq/specifications.html][illumina spec]])
+    - reads per lib
+  - quality (expect >80% >Q30 per [[https://www.illumina.com/systems/sequencing-platforms/nextseq/specifications.html][illumina spec]])
+  - complexity / LOD- see supercite:yeri2017 fig3c and LOD section
+- isomiR mapping
+  - supercite:danielson2018
 *** Unordered
 - for star, add a check and remove tmp dir pior to run
 - limit resoures on the star alignment
@@ -826,7 +855,7 @@ rule make_star_mirna_index:
         --sjdbOverhang 1
 	"""
 #+end_src
-** [[id:f6717c79-64ce-4b16-b455-649df2ba20fd][Project stable version update]]
+
 ** Reference
 :PROPERTIES:
 :header-args:snakemake: :tangle no
