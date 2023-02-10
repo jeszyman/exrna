@@ -4,287 +4,66 @@
 :header-args+: :noweb yes
 :logging: nil
 :END:
+- encode method https://www.encodeproject.org/documents/b4ec4567-ac4e-4812-b2bd-e1d2df746966/@@download/attachment/ENCODE_miRNA-seq_STAR_parameters_v2.pdf
+- https://docs.gdc.cancer.gov/Data/Bioinformatics_Pipelines/miRNA_Pipeline/
+- ensembl has BOTH ncrna and cdna https://useast.ensembl.org/info/genome/genebuild/ncrna.html
+- https://github.com/hzi-bifo/RiboDetector
+- to generate fastas per excerpt https://github.com/rkitchen/exceRpt/blob/6df9a6af35a24c4aa7733c7e711c312339b5002f/build/CREATE_DATABASES.sh
+- just use a well-annotated genome? https://groups.google.com/g/rna-star/c/0NRTUOtiPDI
+- quant and filter multimappers
+  - use featureCounts?
+map to transcriptome
+
+ --parametersFiles /exceRpt_DB/STAR_Parameters_Endogenous_smallRNA.in
 ** Repository setup and administration
+*** Dockerfile
+:PROPERTIES:
+:header-args:bash: :tangle ./resources/exrna_dockerfile
+:END:
+**** Preamble
+#+begin_src bash
+From jeszyman/rna
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+###                                                                          ###
+###                 Dockerfile for Extracellular RNA Analysis                ###
+###                                                                          ###
+#########1#########2#########3#########4#########5#########6#########7#########8
+#+end_src
+**** Conda
+#+begin_src bash
+
+#################
+###   Conda   ###
+#################
+
+RUN conda install -c bioconda star=2.5.4
+
+#SOLUTION: please re-generate genome from scratch with running version of STAR, or with version: 2.7.4a
+#+end_src
+
 *** Bash preamble
 #+begin_src bash :tangle ./config/bash_src
 data_dir=/mnt/ris/szymanski/Active/test
 mkdir -p ${data_dir}/exrna
-
-#+end_src
-*** [[file:config/int_test.yaml][Snakemake configuration YAML]]
-:PROPERTIES:
-:header-args:bash: :tangle ./config/int_test.yaml
-:END:
-#+begin_src bash
-<#bash_preamble#>
-
-threads: 4
-#data_dir: "/mnt/ris/szymanski/exrna_test"
-data_dir: "/home/jeszyman/exrna_test"
-exrna_script_dir: "workflow/scripts"
-container: "${HOME}/sing_containers/rna.1.2.0.sif"
-deseq_design: "~ cohort"
-#exrna_fasta: "/mnt/ris/szymanski/exrna_test/inputs/chr19.fa"
-exrna_fasta: "/home/jeszyman/exrna_test/inputs/chr19.fa"
-#exrna_gtf: "/mnt/ris/szymanski/exrna_test/inputs/ENCFF470CZH.gtf"
-exrna_gtf: "/home/jeszyman/exrna_test/inputs/ENCFF470CZH.gtf"
-#+end_src
-
-
-*** TODO Integration testing inputs setup
-- Manually created files: [[file:resources/libraries.tsv]]
-- Shell commands
-  #+begin_src bash
 mkdir -p $data_dir/inputs
-
-# ^ EXPORT ^
+#+end_src
+*** Integration testing inputs setup
+#+begin_src bash
 source config/bash_src
 
-cp /mnt/ris/jschwarz/Active/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/10b.H5KGMDRXY_GGCTAC_L002_R1.fastq.gz $data_dir/inputs/
+# Grab a couple exrna fastqs
+cp /mnt/ris/jschwarz/Active/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/10b.H5KGMDRXY_GGCTAC_L002_R1.fastq.gz ${data_dir}/inputs/ &
+cp /mnt/ris/jschwarz/Active/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/18b.H5KGMDRXY_GTGAAA_L002_R1.fastq.gz ${data_dir}/inputs/ &
 
-cp /mnt/ris/jschwarz/Active/cardiac-radiobiology/inputs/Rentschler_s5316A_MGI007/18b.H5KGMDRXY_GTGAAA_L002_R1.fastq.gz $data_dir/inputs/
-
-
-## Get hg38
-wget --directory-prefix="test/inputs/" https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
-
-## Make a truncated chromosome 19
-zcat "test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz" | grep -A 500000 chr19 > test/inputs/chr19.fa
-
-# Get GTF
-wget --directory-prefix="test/inputs/" https://www.encodeproject.org/files/ENCFF470CZH/@@download/ENCFF470CZH.gtf.gz
-gunzip --force test/inputs/ENCFF470CZH.gtf.gz
-
-
-#########1#########2#########3#########4#########5#########6#########7#########8
-zcat "test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz" | grep -A 160000 chr19 > test/inputs/chr19.fa
-
-zcat "test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz" | grep -A 170000 chr8 > test/inputs/chr8.fa
-
-
-#index a genome
-samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
-#select chromosomes or regions
-samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna chr19 > chr19.fa
-
-gunzip test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
-
-samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
-
-samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna chr19 > test/inputs/chr19.fa
-
-\rm test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+# Will use the excerpt reference data
+#http://org.gersteinlab.excerpt.s3-website-us-east-1.amazonaws.com/exceRptDB_v4_hg38_lowmem.tgz
 
 #+end_src
-  #+begin_src bash
-\rm -rf test/inputs/mirna_star
-
-singularity shell ~/sing_containers/biotools.sif
-
-STAR --runThreadN 4 \
-     --runMode genomeGenerate \
-     --genomeDir test/inputs/mirna_star \
-     --genomeFastaFiles test/inputs/hairpin.fa test/inputs/mature.fa \
-     --genomeSAindexNbases 6 \
-     --limitGenomeGenerateRAM 256000000000 --genomeChrBinNbits 13
-
-
-STAR \
-    --runMode genomeGenerate \
-    --genomeChrBinNbits 13 \
-    --genomeDir test/inputs/mirna_star \
-    --genomeFastaFiles test/inputs/chr8.fa \
-    --genomeSAindexNbases 9 \
-    --limitGenomeGenerateRAM 400000000000 \
-    --runThreadN 4 \
-    --sjdbGTFfile test/inputs/hsa.gff3.star2 \
-    --sjdbOverhang 1
-
-# via encode
-STAR \
-    --runThreadN 8 \
-    --runMode genomeGenerate \
-    --genomeDir test/inputs/mirna_star \
-    --sjdbGTFfile test/inputs/ENCFF470CZH.gtf \
-    --sjdbOverhang 1 \
-    --genomeSAindexNbases 12 \
-    --genomeFastaFiles test/inputs/chr19.fa
-
-# Encode run params
-STAR \
-    --sjdbGTFfile test/inputs/ENCFF470CZH.gtf \
-    --alignEndsType EndToEnd \
-    --outFilterMismatchNmax 1 \
-    --outFilterMultimapScoreRange 0 \
-    --outSAMtype BAM SortedByCoordinate \
-    --outFilterMultimapNmax 10 \
-    --outSAMunmapped Within \
-    --outFilterScoreMinOverLread 0 \
-    --outFilterMatchNminOverLread 0 \
-    --outFilterMatchNmin 16 \
-    --alignSJDBoverhangMin 1000 \
-    --alignIntronMax 1 \
-    --outWigType wiggle \
-    --outWigNorm RPM \
-    --genomeDir test/inputs/mirna_star \
-    --outFileNamePrefix /tmp/test \
-    --outReadsUnmapped Fastx \
-    --quantMode GeneCounts \
-    --readFilesIn test/inputs/sample1_R1.fastq.gz \
-    --runThreadN 8 \
-    --readFilesCommand zcat
-
-
-# generate vs mirna transcriptome
-STAR \
-    --runMode genomeGenerate \
-    --genomeChrBinNbits 13 \
-    --genomeDir test/inputs/mirna_star \
-    --genomeFastaFiles test/inputs/mature.fa \
-    --genomeSAindexNbases 6 \
-    --limitGenomeGenerateRAM 400000000000 \
-    --runThreadN 4
-
-samtools view -S -b /tmp/testAligned.out.sam > /tmp/testAligned.out.bam
-samtools index /tmp/testAligned.out.bam
-samtools idxstats /tmp/testAligned.out.bam | cut -f 1,3 | awk '$2 > -1 {print}'
-
-STAR \
-    --genomeDir test/inputs/mirna_star \
-    --outFileNamePrefix /tmp/test \
-    --outReadsUnmapped Fastx \
-    --quantMode GeneCounts \
-    --readFilesIn test/inputs/sample1_R1.fastq.gz \
-    --runThreadN 4 \
-    --readFilesCommand zcat
-
-# https://github.com/gersteinlab/exceRpt/blob/e8fe71c42777366e4b2bf8e52854d29b74721b5d/ExampleData/testData_human.fastq/endogenousAlignments_genome_Log.out
-
-
-STAR \
-    --genomeDir test/inputs/mirna_star \
-    --outFileNamePrefix /tmp/test \
-    --outReadsUnmapped Fastx \
-    --quantMode GeneCounts \
-    --readFilesIn test/inputs/sample1_R1.fastq.gz \
-    --runThreadN 8 \
-    --readFilesCommand zcat \
-    --outSAMtype BAM   Unsorted \
-    --outSAMattributes All \
-    --outSAMunmapped None \
-    --outFilterMultimapNmax 1000000 \
-    --outFilterMatchNmin 18 \
-    --outFilterMatchNminOverLread 0.9 \
-    --outFilterMismatchNmax 1 \
-    --outFilterMismatchNoverLmax 0.3 \
-    --alignIntronMin 2 \
-    --alignIntronMax 1 \
-    --alignEndsType Local
-
-wget \
-    --no-clobber \
-    -O test/inputs/hairpin.fa.gz https://www.mirbase.org/ftp/CURRENT/hairpin.fa.gz
-
-wget \
-    --no-clobber \
-    -O test/inputs/mature.fa.gz https://www.mirbase.org/ftp/CURRENT/mature.fa.gz
-
-zcat test/inputs/hairpin.fa.gz | head -n 10000 > test/inputs/hairpin.fa
-zcat test/inputs/mature.fa.gz | head -n 10000 > test/inputs/mature.fa
-
-wget -O test/inputs/hsa.gff3 https://www.mirbase.org/ftp/CURRENT/genomes/hsa.gff3
-
-cat test/inputs/hsa.gff3 | tail -n+14 | awk '{$13=$3; print}' | awk '{$3="exon"; print}' | awk '$1="chr8" {print}' | awk -v FS='\t' -v OFS='\t' '$5 < 100000 {print}' > test/inputs/hsa.gff3.star
-
-
-tr " " "\t" < test/inputs/hsa.gff3.star > test/inputs/hsa.gff3.star2
-
+#+begin_src bash
+docker run -v /mnt:/mnt -it --entrypoint /bin/bash rkitchen/excerpt
+cp -r exceRpt_DB /mnt/ris/szymanski/Active/test/inputs/
 #+end_src
-
-  #+begin_src bash :tangle no
-#
-mkdir -p $repo/test/raw
-mkdir -p $repo/test/ref
-#
-zcat $dataDIR/raw/a1.s5121_91940_RPI3_TTAGGC_S4_R1_001.fastq.gz | head -n 10000 > $repo/test/raw/mouse.fastq
-zcat $dataDIR/raw/gb1_mirna.s5121_91939_RPI2_CGATGT_S3_R1_001.fastq.gz | head -n 10000 > $repo/test/raw/human.fastq
-#
-wget http://ftp.ensembl.org/pub/release-103/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.chromosome.1.fa.gz -o /tmp/Homo_sapiens.GRCh38.dna.chromosome.1.fa.gz
-wget http://ftp.ensembl.org/pub/release-103/fasta/mus_musculus/dna/Mus_musculus.GRCm39.dna.chromosome.1.fa.gz -o Mus_musculus.GRCm39.dna.chromosome.1.fa.gz
-#
-zcat /tmp/Homo_sapiens.GRCh38.dna.chromosome.1.fa.gz | head -n 10000 > $repo/test/ref/human_ref.fa
-zcat /tmp/Mus_musculus.GRCm39.dna.chromosome.1.fa.gz | head -n 10000 > $repo/test/ref/mouse_ref.fa
-#
-#+end_src
-*** DONE [[file:~/repos/biotools/biotools.org::*Per-project setup work tree][Per-project setup work tree]]
-** Snakemake configuration YAML
-** Integration testing
-*** Integration testing
-**** [[file:workflow/int_test.smk][Snakefile]]                          :smk:
-:PROPERTIES:
-:header-args:snakemake: :tangle ./workflow/int_test.smk
-:END:
-***** Preamble, variable naming and functions
-#+begin_src snakemake :tangle ./workflow/int_test.smk
-
-####################################################################
-###   Integration Testing for Extracellular RNA Bioinformatics   ###
-####################################################################
-
-import pandas as pd
-import re
-container: config["container"]
-
-# Setup sample name index as a python dictionary
-
-libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")
-library_indict = libraries["library"].tolist()
-file_indict = libraries["file"].tolist()
-lib_dict = dict(zip(library_indict, file_indict))
-
-LIBRARIES = list(lib_dict.keys())
-FASTQS = list(lib_dict.values())
-#+end_src
-***** All rule and other out-of-workflow rules
-#+begin_src snakemake :tangle ./workflow/int_test.smk
-
-rule all:
-    input:
-        #expand(config["data_dir"] + "/fastq/raw/{library}.fastq.gz", library = lib_dict.keys()),
-        #expand(config["data_dir"] + "/fastq/trim/{library}.fastq.gz", library = LIBRARIES),
-        #expand(config["data_dir"] + "/bam/{align_step}/{library}_{align_step}_ReadsPerGene.out.tab", library = LIBRARIES, align_step = ["mirna"]),
-        #expand(config["data_dir"] + "/counts/{library}_{align_step}_counts.tsv", library = LIBRARIES, align_step = ["mirna"]),
-        #config["data_dir"] + "/counts/counts.tsv",
-        config["data_dir"] + "/de/de.Rdata",
-#+end_src
-***** DONE Symlink input fastqs                                    :smk_rule:
-#+begin_src snakemake
-rule symlink_inputs:
-    input:
-        lambda wildcards: lib_dict[wildcards.library],
-    output:
-        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
-    shell:
-        """
-        ln -sf --relative {input} {output}
-        """
-#+end_src
-***** Includes statements
-#+begin_src snakemake
-include: "exrna.smk"
-#+end_src
-**** Shell scripts
-
-***** From biotools
-****** Dry run
-#+transclude: [[id:c6c494f0-5dbe-4cc4-bf99-8bcd7b12de24]] :only-contents
-****** Draw rulegraph
-#+transclude: [[id:78a99954-1d5d-4e09-87a4-6690f28f4519]] :only-contents
-****** Normal run
-#+transclude: [[id:3adf72d3-aa35-4a3d-8eba-0df075c52e26]] :only-contents
-****** Forced run
-#+transclude: [[id:c2a25d2f-05bb-4eda-920f-e2d9fa768de6]] :only-contents
-
 ** exRNA read processing, alignment, and differential expression :smk:
 :PROPERTIES:
 :header-args:snakemake: :tangle ./workflow/exrna.smk
@@ -299,43 +78,69 @@ include: "exrna.smk"
 #########1#########2#########3#########4#########5#########6#########7#########8
 
 #+end_src
-*** TODO Read pre-processing                                       :smk_rule:
-    --adapter-preset SmallRNA \
-    --output-log $log \
-    --output-reads $output \
-    --pre-trim-right 1 \
-    --reads $input \
-    --threads $threads \
-    --htrim-right AT \
-    --htrim-min-length 10 \
-    --htrim-error-rate 0.1 \
-    --zip-output GZ
+*** Build univec reference
+#+begin_src bash
+docker run -it -v /home:/home -v /mnt:/mnt --entrypoint /bin/bash rkitchen/excerpt
+find . -name "*contaminants.fa*"
+find . -name "hg38_rRNA*"
 
+singularity shell --bind /mnt ~/sing_containers/rna.1.2.0.sif
+
+source ./config/bash_src
+
+ls /mnt/ris/szymanski/Active/test/inputs/exceRpt_DB/UniVec/
+
+STAR --runMode genomeGenerate --runThreadN 20 --genomeDir ${data_dir}/ref/univec --genomeFastaFiles ${data_dir}/inputs/exceRpt_DB/UniVec/UniVec_Core.contaminants.fasta --genomeSAindexNbases 9 --genomeChrBinNbits 8
+
+# SEE GENOME PARAMS FOR COMMAND THEY USED
+#+end_src
+*** Build miRNA reference
+*** INPROCESS Read pre-processing                                  :smk_rule:
 - [[file:./workflow/scripts/read_preprocessing.sh][Shell script]]
   #+begin_src bash :tangle ./workflow/scripts/read_trim.sh
 #!/usr/bin/env bash
 
 # For unit testing
-singularity shell --bind /mnt ~/sing_containers/biotools.1.0.2.sif
+# singularity shell --bind /mnt ~/sing_containers/biotools.1.0.2.sif
+# source ./config/bash_src
+# mkdir -p ${data_dir}/analysis/exrna/fastqs
+# mkdir -p ${data_dir}/logs
+# ln -sf ${data_dir}/inputs/10b.H5KGMDRXY_GGCTAC_L002_R1.fastq.gz ${data_dir}/analysis/exrna/fastqs/lib001_raw_R1.fastq.gz
+# ln -sf ${data_dir}/inputs/18b.H5KGMDRXY_GTGAAA_L002_R1.fastq.gz ${data_dir}/analysis/exrna/fastqs/lib002_raw_R2.fastq.gz
 
-fastp -i  -o
+# in_fastq=${data_dir}/analysis/exrna/fastqs/lib001_raw_R1.fastq.gz
+# out_fastq=${data_dir}/analysis/exrna/fastqs/lib001_proc_R1.fastq.gz
+# out_fail=${data_dir}/analysis/exrna/fastqs/lib001_fail_R1.fastq.gz
+# log_html=${data_dir}/logs/lib001_fastp.html
+# log_json=${data_dir}/logs/lib001_fastp.json
+# threads=8
 
-input=$1
-threads=$2
-output=$(echo $3 | sed 's/.gz$//g')
-log=$4
+# Command line inputs
+in_fastq="${1}"
+out_fastq="${2}"
+out_fail="${3}"
+log_html="${4}"
+log_json="${5}"
+threads="${6}"
 
-flexbar \
-    --adapter-preset SmallRNA \
-    --output-log $log \
-    --output-reads $output \
-    --pre-trim-right 1 \
-    --reads $input \
-    --threads $threads \
-    --htrim-right AT \
-    --htrim-min-length 10 \
-    --htrim-error-rate 0.1 \
-    --zip-output GZ
+
+# Fastp
+# Quality filters are default, but verbose here
+# Length limit added appropriate for these small RNA-seq reads
+fastp \
+    --adapter_sequence "TGGAATTCTCGGGTGCCAAGG" \
+    --dont_eval_duplication \
+    --failed_out $out_fail \
+    --html $log_html \
+    --in1 $in_fastq \
+    --json $log_json \
+    --max_len1 50 \
+    --out1 $out_fastq \
+    --overrepresentation_analysis \
+    --qualified_quality_phred 15 \
+    --thread $threads \
+    --trim_poly_g \
+    --unqualified_percent_limit 40
 
 #+end_src
 - Snakemake
@@ -360,6 +165,91 @@ rule read_preprocessing:
         {output} \
         {log}
         """
+#+end_src
+*** Fastqc
+#+begin_src bash
+#!/usr/bin/env bash
+
+# For unit testing
+# singularity shell --bind /mnt ~/sing_containers/biotools.1.0.2.sif
+# source ./config/bash_src
+# mkdir -p ${data_dir}/analysis/qc
+# in_fastq=${data_dir}/analysis/exrna/fastqs/lib001_proc_r1.fastq.gz
+# out_dir=${data_dir}/analysis/qc
+# threads=16
+
+
+# Command line variables
+in_fastq="${1}"
+out_dir="${2}"
+threads="${3}"
+
+fastqc  --outdir $out_dir \
+        --quiet \
+        --threads $threads $in_fastq
+
+#+end_src
+*** STAR alignment to univec
+#+begin_src bash
+#docker run -it -v /home:/home -v /mnt:/mnt --entrypoint /bin/bash rkitchen/excerpt
+singularity shell --bind /mnt ~/sing_containers/rna.1.2.0.sif
+
+docker run -it -v /mnt:/mnt -v /home:/home jeszyman/exrna /bin/bash
+cd /home/jeszyman/repos/exrna
+source ./config/bash_src
+
+mkdir -p ${data_dir}/analysis/exrna/univec
+
+
+if [ -d /tmp/star ]; then rm -rf /tmp/star; fi
+
+STAR \
+    --genomeDir ${data_dir}/ref/univec \
+    --outFileNamePrefix ${data_dir}/analysis/exrna/univec/lib001 \
+    --outReadsUnmapped  Fastx \
+    --outSAMtype  BAM SortedByCoordinate \
+    --readFilesCommand  zcat \
+    --readFilesIn ${data_dir}/analysis/exrna/fastqs/lib001_proc_R1.fastq.gz \
+    --runMode  alignReads \
+    --runThreadN 14 \
+    --outTmpDir /tmp/star \
+    --limitBAMsortRAM 1030250820
+
+
+STAR \
+    --alignEndsType  Local \
+    --alignIntronMax  1 \
+    --alignIntronMin  2 \
+    --genomeDir ${data_dir}/inputs/exceRpt_DB/UniVec/STAR_INDEX_UniVec \
+    --outFileNamePrefix ${data_dir}/analysis/exrna/univec/lib001 \
+    --outFilterMatchNmin  16 \
+    --outFilterMatchNminOverLread 0.9 \
+    --outFilterMismatchNmax 1 \
+    --outFilterMismatchNoverLmax  0.05 \
+    --outFilterMultimapNmax  1000000 \
+    --outReadsUnmapped  Fastx \
+    --outSAMattributes  All \
+    --outSAMunmapped  None \
+    --outSAMtype  BAM Unsorted \
+    --readFilesCommand  zcat \
+    --readFilesIn ${data_dir}/analysis/exrna/fastqs/lib001_proc_R1.fastq.gz \
+    --runMode  alignReads \
+    --runThreadN 4
+
+#+end_src
+*** STAR alignment to rRNA
+#+begin_src bash
+STAR \
+    --runThreadN 4 \
+    --outFileNamePrefix ${data_dir}/analysis/exrna/rrna/lib001 \
+    --genomeDir ${data_dir}/inputs/excerpt_hg38/hg38/STAR_INDEX_rRNA \
+    --readFilesIn /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.noUniVecContaminants.fastq.gz --outReadsUnmapped Fastx --parametersFiles /exceRpt_DB/STAR_Parameters_Endogenous_smallRNA.in --alignEndsType Local --outFilterMatchNmin 18 --outFilterMatchNminOverLread 0.9 --outFilterMismatchNmax 1 --outFilterMismatchNoverLmax 0.3  >> /exceRptOutput/SRR026761.log 2>> /exceRptOutput/SRR026761.err; /exceRpt_bin/samtools-1.7/samtools view /exceRptOutput/SRR026761/filteringAlignments_rRNA_Aligned.out.bam | awk '{print }' | sort -k 2,2 2>> /exceRptOutput/SRR026761.err | uniq -c > /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.rRNA.counts 2>> /exceRptOutput/SRR026761.err; /exceRpt_bin/samtools-1.7/samtools view /exceRptOutput/SRR026761/filteringAlignments_rRNA_Aligned.out.bam | awk '{print }' | sort 2>> /exceRptOutput/SRR026761.err | uniq -c | wc -l > /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.rRNA.readCount 2>> /exceRptOutput/SRR026761.err; gzip -c /exceRptOutput/SRR026761/filteringAlignments_rRNA_Unmapped.out.mate1 > /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.noRiboRNA.fastq.gz; rm /exceRptOutput/SRR026761/filteringAlignments_rRNA_Unmapped.out.mate1
+
+2023-02-06--15:12:40 exceRpt_smallRNA: /exceRpt_bin/STAR-2.5.4b/bin/Linux_x86_64/STAR --runThreadN 4 --outFileNamePrefix /exceRptOutput/SRR026761/filteringAlignments_rRNA_ --genomeDir /exceRpt_DB/hg38/STAR_INDEX_rRNA --readFilesIn /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.noUniVecContaminants.fastq.gz --outReadsUnmapped Fastx --parametersFiles /exceRpt_DB/STAR_Parameters_Endogenous_smallRNA.in --alignEndsType Local --outFilterMatchNmin 18 --outFilterMatchNminOverLread 0.9 --outFilterMismatchNmax 1 --outFilterMismatchNoverLmax 0.3  >> /exceRptOutput/SRR026761.log 2>> /exceRptOutput/SRR026761.err; /exceRpt_bin/samtools-1.7/samtools view /exceRptOutput/SRR026761/filteringAlignments_rRNA_Aligned.out.bam | awk '{print }' | sort -k 2,2 2>> /exceRptOutput/SRR026761.err | uniq -c > /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.rRNA.counts 2>> /exceRptOutput/SRR026761.err; /exceRpt_bin/samtools-1.7/samtools view /exceRptOutput/SRR026761/filteringAlignments_rRNA_Aligned.out.bam | awk '{print }' | sort 2>> /exceRptOutput/SRR026761.err | uniq -c | wc -l > /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.rRNA.readCount 2>> /exceRptOutput/SRR026761.err; gzip -c /exceRptOutput/SRR026761/filteringAlignments_rRNA_Unmapped.out.mate1 > /exceRptOutput/SRR026761/SRR026761.clipped.trimmed.filtered.noRiboRNA.fastq.gz; rm /exceRptOutput/SRR026761/filteringAlignments_rRNA_Unmapped.out.mate1
+#+end_src
+*** STAR alignment to transcriptome
+#+begin_src bash
+
 #+end_src
 *** DONE Make STAR miRNA index                                        :smk_rule:
 - Snakemake
@@ -621,6 +511,94 @@ save(nofilt_dds,
 
 
 
+** Snakemake configuration YAML
+
+:PROPERTIES:
+:header-args:bash: :tangle ./config/int_test.yaml
+:END:
+#+begin_src bash
+<#bash_preamble#>
+
+threads: 4
+#data_dir: "/mnt/ris/szymanski/exrna_test"
+data_dir: "/home/jeszyman/exrna_test"
+exrna_script_dir: "workflow/scripts"
+container: "${HOME}/sing_containers/rna.1.2.0.sif"
+deseq_design: "~ cohort"
+#exrna_fasta: "/mnt/ris/szymanski/exrna_test/inputs/chr19.fa"
+exrna_fasta: "/home/jeszyman/exrna_test/inputs/chr19.fa"
+#exrna_gtf: "/mnt/ris/szymanski/exrna_test/inputs/ENCFF470CZH.gtf"
+exrna_gtf: "/home/jeszyman/exrna_test/inputs/ENCFF470CZH.gtf"
+#+end_src
+
+
+** Integration testing
+*** Integration testing
+**** [[file:workflow/int_test.smk][Snakefile]]                          :smk:
+:PROPERTIES:
+:header-args:snakemake: :tangle ./workflow/int_test.smk
+:END:
+***** Preamble, variable naming and functions
+#+begin_src snakemake :tangle ./workflow/int_test.smk
+
+####################################################################
+###   Integration Testing for Extracellular RNA Bioinformatics   ###
+####################################################################
+
+import pandas as pd
+import re
+container: config["container"]
+
+# Setup sample name index as a python dictionary
+
+libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")
+library_indict = libraries["library"].tolist()
+file_indict = libraries["file"].tolist()
+lib_dict = dict(zip(library_indict, file_indict))
+
+LIBRARIES = list(lib_dict.keys())
+FASTQS = list(lib_dict.values())
+#+end_src
+***** All rule and other out-of-workflow rules
+#+begin_src snakemake :tangle ./workflow/int_test.smk
+
+rule all:
+    input:
+        #expand(config["data_dir"] + "/fastq/raw/{library}.fastq.gz", library = lib_dict.keys()),
+        #expand(config["data_dir"] + "/fastq/trim/{library}.fastq.gz", library = LIBRARIES),
+        #expand(config["data_dir"] + "/bam/{align_step}/{library}_{align_step}_ReadsPerGene.out.tab", library = LIBRARIES, align_step = ["mirna"]),
+        #expand(config["data_dir"] + "/counts/{library}_{align_step}_counts.tsv", library = LIBRARIES, align_step = ["mirna"]),
+        #config["data_dir"] + "/counts/counts.tsv",
+        config["data_dir"] + "/de/de.Rdata",
+#+end_src
+***** DONE Symlink input fastqs                                    :smk_rule:
+#+begin_src snakemake
+rule symlink_inputs:
+    input:
+        lambda wildcards: lib_dict[wildcards.library],
+    output:
+        config["data_dir"] + "/fastq/raw/{library}.fastq.gz"
+    shell:
+        """
+        ln -sf --relative {input} {output}
+        """
+#+end_src
+***** Includes statements
+#+begin_src snakemake
+include: "exrna.smk"
+#+end_src
+**** Shell scripts
+
+***** From biotools
+****** Dry run
+#+transclude: [[id:c6c494f0-5dbe-4cc4-bf99-8bcd7b12de24]] :only-contents
+****** Draw rulegraph
+#+transclude: [[id:78a99954-1d5d-4e09-87a4-6690f28f4519]] :only-contents
+****** Normal run
+#+transclude: [[id:3adf72d3-aa35-4a3d-8eba-0df075c52e26]] :only-contents
+****** Forced run
+#+transclude: [[id:c2a25d2f-05bb-4eda-920f-e2d9fa768de6]] :only-contents
+
 ** README
 :PROPERTIES:
 :export_file_name: ./README.md
@@ -816,6 +794,8 @@ for excerpt way, need to filter mirdb fas to just human, then build annotation f
       - mkdir STAR_GENOME_PLANTS1
       - /gpfs/scratch/fas/gerstein/rrk24/bin/STAR_2.4.0i/bin/Linux_x86_64/STAR --runMode genomeGenerate --genomeDir STAR_GENOME_PLANTS1 --genomeFastaFiles Plant1.fa --limitGenomeGenerateRAM 256000000000 --genomeChrBinNbits 13 --runThreadN 64
 ** Ideas
+- add integration testing support for sample sheet
+  - Manually created files: [[file:resources/libraries.tsv]]
 - QC
   - reads
   - amount
@@ -874,6 +854,161 @@ rule make_star_mirna_index:
 - exceRpt pipeline
   - cite:rozowsky2019
   - https://github.com/gersteinlab/exceRpt
+*** oldcode
+  #+begin_src bash
+\rm -rf test/inputs/mirna_star
+
+singularity shell ~/sing_containers/biotools.sif
+
+STAR --runThreadN 4 \
+     --runMode genomeGenerate \
+     --genomeDir test/inputs/mirna_star \
+     --genomeFastaFiles test/inputs/hairpin.fa test/inputs/mature.fa \
+     --genomeSAindexNbases 6 \
+     --limitGenomeGenerateRAM 256000000000 --genomeChrBinNbits 13
+
+
+STAR \
+    --runMode genomeGenerate \
+    --genomeChrBinNbits 13 \
+    --genomeDir test/inputs/mirna_star \
+    --genomeFastaFiles test/inputs/chr8.fa \
+    --genomeSAindexNbases 9 \
+    --limitGenomeGenerateRAM 400000000000 \
+    --runThreadN 4 \
+    --sjdbGTFfile test/inputs/hsa.gff3.star2 \
+    --sjdbOverhang 1
+
+# via encode
+STAR \
+    --runThreadN 8 \
+    --runMode genomeGenerate \
+    --genomeDir test/inputs/mirna_star \
+    --sjdbGTFfile test/inputs/ENCFF470CZH.gtf \
+    --sjdbOverhang 1 \
+    --genomeSAindexNbases 12 \
+    --genomeFastaFiles test/inputs/chr19.fa
+
+# Encode run params
+STAR \
+    --sjdbGTFfile test/inputs/ENCFF470CZH.gtf \
+    --alignEndsType EndToEnd \
+    --outFilterMismatchNmax 1 \
+    --outFilterMultimapScoreRange 0 \
+    --outSAMtype BAM SortedByCoordinate \
+    --outFilterMultimapNmax 10 \
+    --outSAMunmapped Within \
+    --outFilterScoreMinOverLread 0 \
+    --outFilterMatchNminOverLread 0 \
+    --outFilterMatchNmin 16 \
+    --alignSJDBoverhangMin 1000 \
+    --alignIntronMax 1 \
+    --outWigType wiggle \
+    --outWigNorm RPM \
+    --genomeDir test/inputs/mirna_star \
+    --outFileNamePrefix /tmp/test \
+    --outReadsUnmapped Fastx \
+    --quantMode GeneCounts \
+    --readFilesIn test/inputs/sample1_R1.fastq.gz \
+    --runThreadN 8 \
+    --readFilesCommand zcat
+
+
+# generate vs mirna transcriptome
+STAR \
+    --runMode genomeGenerate \
+    --genomeChrBinNbits 13 \
+    --genomeDir test/inputs/mirna_star \
+    --genomeFastaFiles test/inputs/mature.fa \
+    --genomeSAindexNbases 6 \
+    --limitGenomeGenerateRAM 400000000000 \
+    --runThreadN 4
+
+samtools view -S -b /tmp/testAligned.out.sam > /tmp/testAligned.out.bam
+samtools index /tmp/testAligned.out.bam
+samtools idxstats /tmp/testAligned.out.bam | cut -f 1,3 | awk '$2 > -1 {print}'
+
+STAR \
+    --genomeDir test/inputs/mirna_star \
+    --outFileNamePrefix /tmp/test \
+    --outReadsUnmapped Fastx \
+    --quantMode GeneCounts \
+    --readFilesIn test/inputs/sample1_R1.fastq.gz \
+    --runThreadN 4 \
+    --readFilesCommand zcat
+
+# https://github.com/gersteinlab/exceRpt/blob/e8fe71c42777366e4b2bf8e52854d29b74721b5d/ExampleData/testData_human.fastq/endogenousAlignments_genome_Log.out
+
+
+STAR \
+    --genomeDir test/inputs/mirna_star \
+    --outFileNamePrefix /tmp/test \
+    --outReadsUnmapped Fastx \
+    --quantMode GeneCounts \
+    --readFilesIn test/inputs/sample1_R1.fastq.gz \
+    --runThreadN 8 \
+    --readFilesCommand zcat \
+    --outSAMtype BAM   Unsorted \
+    --outSAMattributes All \
+    --outSAMunmapped None \
+    --outFilterMultimapNmax 1000000 \
+    --outFilterMatchNmin 18 \
+    --outFilterMatchNminOverLread 0.9 \
+    --outFilterMismatchNmax 1 \
+    --outFilterMismatchNoverLmax 0.3 \
+    --alignIntronMin 2 \
+    --alignIntronMax 1 \
+    --alignEndsType Local
+
+wget \
+    --no-clobber \
+    -O test/inputs/hairpin.fa.gz https://www.mirbase.org/ftp/CURRENT/hairpin.fa.gz
+
+wget \
+    --no-clobber \
+    -O test/inputs/mature.fa.gz https://www.mirbase.org/ftp/CURRENT/mature.fa.gz
+
+zcat test/inputs/hairpin.fa.gz | head -n 10000 > test/inputs/hairpin.fa
+zcat test/inputs/mature.fa.gz | head -n 10000 > test/inputs/mature.fa
+
+wget -O test/inputs/hsa.gff3 https://www.mirbase.org/ftp/CURRENT/genomes/hsa.gff3
+
+cat test/inputs/hsa.gff3 | tail -n+14 | awk '{$13=$3; print}' | awk '{$3="exon"; print}' | awk '$1="chr8" {print}' | awk -v FS='\t' -v OFS='\t' '$5 < 100000 {print}' > test/inputs/hsa.gff3.star
+
+
+tr " " "\t" < test/inputs/hsa.gff3.star > test/inputs/hsa.gff3.star2
+
+#+end_src
+## Get hg38
+wget --directory-prefix="test/inputs/" https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+
+## Make a truncated chromosome 19
+zcat "test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz" | grep -A 500000 chr19 > test/inputs/chr19.fa
+
+# Get GTF
+wget --directory-prefix="test/inputs/" https://www.encodeproject.org/files/ENCFF470CZH/@@download/ENCFF470CZH.gtf.gz
+gunzip --force test/inputs/ENCFF470CZH.gtf.gz
+
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+zcat "test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz" | grep -A 160000 chr19 > test/inputs/chr19.fa
+
+zcat "test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz" | grep -A 170000 chr8 > test/inputs/chr8.fa
+
+
+#index a genome
+samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
+#select chromosomes or regions
+samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna chr19 > chr19.fa
+
+gunzip test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+
+samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
+
+samtools faidx test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna chr19 > test/inputs/chr19.fa
+
+\rm test/inputs/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz
+
 *** RUN Fetch references
 CLOSED: [2021-12-02 Thu 15:06]
 :PROPERTIES:

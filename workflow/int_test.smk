@@ -6,7 +6,6 @@ import pandas as pd
 import re
 container: config["container"]
 
-
 # Setup sample name index as a python dictionary
 
 libraries = pd.read_table(config["data_dir"] + "/inputs/libraries.tsv")

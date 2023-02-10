@@ -1,0 +1,15 @@
+From jeszyman/rna
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+###                                                                          ###
+###                 Dockerfile for Extracellular RNA Analysis                ###
+###                                                                          ###
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+#################
+###   Conda   ###
+#################
+
+RUN conda install -c bioconda star=2.5.4
+
+#SOLUTION: please re-generate genome from scratch with running version of STAR, or with version: 2.7.4a

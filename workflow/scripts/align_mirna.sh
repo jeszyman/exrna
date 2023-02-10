@@ -5,10 +5,8 @@ fq=$2
 threads=$3
 output=$4
 out_prefix=$(echo $output | sed 's/_Reads.*$/_/g')
-out_tmp=$(echo $fq | sed 's/^.*lib/lib/g')
 
-#fq_base=$(echo fq | sed 's/^.*\///g')
-#mkdir -p /tmp/STAR
+out_tmp=$(echo $fq | sed 's/^.*lib/lib/g')
 
 STAR \
     --genomeDir $index \
@@ -30,5 +28,3 @@ STAR \
     --alignIntronMax 1 \
     --outTmpDir "/tmp/${out_tmp}" \
     --alignEndsType Local
-
-#\rm -rf /tmp/STAR
